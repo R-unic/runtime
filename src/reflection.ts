@@ -1,4 +1,4 @@
-import { Type } from "./type";
+import { Type } from "./declarations";
 
 const store = new Map<string, Type>();
 const dataTypes = new Map<unknown, string>();
