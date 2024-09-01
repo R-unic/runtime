@@ -16,7 +16,7 @@ export class Method {
 	readonly AccessModifier!: number;
 	readonly IsStatic!: boolean;
 	readonly IsAbstract!: boolean;
-	readonly Callback!: (context: unknown, ...args: unknown[]) => unknown;
+	readonly Callback?: (context: unknown, ...args: unknown[]) => unknown;
 }
 
 export class Parameter {
@@ -37,5 +37,5 @@ export class Property {
 export class ConstructorInfo {
 	readonly Parameters!: Parameter[];
 	readonly AccessModifier!: number;
-	readonly Callback!: (...args: unknown[]) => unknown;
+	readonly Callback?: (...args: unknown[]) => unknown;
 }

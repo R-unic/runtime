@@ -1,1 +1,2 @@
-export function $Indefine<T>(): string;
+export function $indefine<T>(): string;
+export function $reflect<T>(): void;

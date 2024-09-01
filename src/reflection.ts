@@ -2,7 +2,6 @@ import { Type } from "./declarations";
 import { Metadata } from "./metadata";
 
 const store = new Map<string, Type>();
-const dataTypes = new Map<unknown, string>();
 const globalContext = _G as Record<string, unknown>;
 const GENERIC_PARAMETERS = "__GENERIC_PARAMETERS__";
 const metadataTypeReference = "__TYPE_REFERENSE__";
@@ -20,12 +19,26 @@ export function RegisterType(name: string, _type: Type) {
 	store.set(name, _type);
 }
 
+export function RegisterTypes(...args: { name: string; _type: Type }[]) {
+	args.forEach(({ name, _type }) => RegisterType(name, _type));
+}
+
 export function RegisterDataType(instance: object, name: string) {
 	Metadata.defineMetadata(instance, metadataTypeReference, name);
 }
 
 /** @internal @hidden */
-export function SetupGenericParameters() {}
+export function SetupGenericParameters(params: string[]) {
+	globalContext[GENERIC_PARAMETERS] = params;
+}
+
+/** @internal @hidden */
+export function GetGenericParameters() {
+	const result = globalContext[GENERIC_PARAMETERS] as string[];
+	globalContext[GENERIC_PARAMETERS] = undefined;
+
+	return result;
+}
 
 export function GetType<T>(instance?: T): Type {
 	let _type: Type | undefined;
