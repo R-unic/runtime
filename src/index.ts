@@ -1,3 +1,3 @@
 export * from "./declarations";
-export * from "./macro";
+export type { $Indefine } from "./macro";
 export * from "./reflection";
