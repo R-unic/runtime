@@ -33,6 +33,14 @@ export function SetupGenericParameters(params: string[]) {
 }
 
 /** @internal @hidden */
+export function SetupDefaultGenericParameters(defined: string[], params: [number, string][]) {
+	params.forEach(([index, id]) => {
+		if (defined[index] !== undefined) return;
+		defined[index] = id;
+	});
+}
+
+/** @internal @hidden */
 export function GetGenericParameters() {
 	const result = globalContext[GENERIC_PARAMETERS] as string[];
 	globalContext[GENERIC_PARAMETERS] = undefined;
