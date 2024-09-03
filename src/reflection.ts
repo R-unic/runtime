@@ -58,7 +58,7 @@ export function RegisterType(_typeRef: IType) {
 	if (reflectStore.Store.has(_typeRef.FullName)) return;
 	const _type = ConvertTypeDescriptorInClass(_typeRef);
 
-	const types = reflectStore.TypesByProjectName.get(_type.FullName) ?? [];
+	const types = reflectStore.TypesByProjectName.get(_type.Namespace) ?? [];
 	reflectStore.TypesByProjectName.set(_type.Namespace, types);
 
 	if (!reflectStore.NamespacesSet.has(_type.Namespace)) {
