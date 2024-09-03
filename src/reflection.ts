@@ -118,6 +118,11 @@ export function GetType<T>(instance?: T): Type {
 	return _type;
 }
 
+/** @internal @hidden */
+export function __GetType<T>(instance?: T): Type {
+	return GetType<T>(instance);
+}
+
 /** @internal */
 export function GetMethodCallback(ctor: object, methodName: string) {
 	const casted = ctor as Record<string, (context: unknown, ...args: unknown[]) => unknown>;
