@@ -1,26 +1,78 @@
-import { Type } from "./declarations";
+import { ConvertTypeDescriptorInClass, IType, Type, TypeKind } from "./declarations";
 import { Metadata } from "./metadata";
 
-const store = new Map<string, Type>();
+interface IReflectStore {
+	Store: Map<string, Type>;
+	Types: Type[];
+	TypesByProjectName: Map<string, Type[]>;
+	Namespaces: string[];
+	NamespacesSet: Set<string>;
+}
+
+const ReflectStoreTemplate: IReflectStore = {
+	Store: new Map<string, Type>(),
+	Namespaces: [],
+	NamespacesSet: new Set(),
+	Types: [],
+	TypesByProjectName: new Map<string, Type[]>(),
+};
+
+const KEY = "__REFLECT_STORE";
 const globalContext = _G as Record<string, unknown>;
+const reflectStore = (globalContext[KEY] as IReflectStore) ?? ReflectStoreTemplate;
+globalContext[KEY] = reflectStore;
+
 const GENERIC_PARAMETERS = "__GENERIC_PARAMETERS__";
 const metadataTypeReference = "__TYPE_REFERENSE__";
 
-const UNKNOWN_TYPE: Type = {
+const UNKNOWN_TYPE = ConvertTypeDescriptorInClass({
 	Name: "unknown",
 	FullName: "unknown",
+	Namespace: "unknown",
 	BaseType: undefined,
 	Interfaces: [],
 	Properties: [],
 	Methods: [],
-};
+	Kind: TypeKind.Unknown,
+});
 
-export function RegisterType(name: string, _type: Type) {
-	store.set(name, _type);
+export const CurrentNamespace = { _special: "CurrentNamespace" as const };
+
+export function GetAllTypes() {
+	return reflectStore.Types as ReadonlyArray<Type>;
 }
 
-export function RegisterTypes(...args: { name: string; _type: Type }[]) {
-	args.forEach(({ name, _type }) => RegisterType(name, _type));
+export function GetAllNamespaces() {
+	return reflectStore.Namespaces as ReadonlyArray<string>;
+}
+
+export function GetTypes(namespace: string | typeof CurrentNamespace) {
+	if (namespace === CurrentNamespace) {
+		throw "Transformer missing CurrentNamespace marker";
+	}
+
+	return (reflectStore.TypesByProjectName.get(namespace as string) as ReadonlyArray<Type>) ?? [];
+}
+
+export function RegisterType(_typeRef: IType) {
+	if (reflectStore.Store.has(_typeRef.FullName)) return;
+	const _type = ConvertTypeDescriptorInClass(_typeRef);
+
+	const types = reflectStore.TypesByProjectName.get(_type.FullName) ?? [];
+	reflectStore.TypesByProjectName.set(_type.Namespace, types);
+
+	if (!reflectStore.NamespacesSet.has(_type.Namespace)) {
+		reflectStore.Namespaces.push(_type.Namespace);
+		reflectStore.NamespacesSet.add(_type.Namespace);
+	}
+
+	types.push(_type);
+	reflectStore.Types.push(_type);
+	reflectStore.Store.set(_type.FullName, _type);
+}
+
+export function RegisterTypes(...args: IType[]) {
+	args.forEach(RegisterType);
 }
 
 export function RegisterDataType(instance: object, name: string) {
@@ -52,11 +104,11 @@ export function GetType<T>(instance?: T): Type {
 	let _type: Type | undefined;
 
 	if (typeIs(instance, "string")) {
-		_type = store.get(instance);
+		_type = reflectStore.Store.get(instance);
 	}
 
 	if (typeIs(instance, "table")) {
-		_type = store.get(Metadata.getMetadata(instance, metadataTypeReference) ?? "__UNKNOWN__");
+		_type = reflectStore.Store.get(Metadata.getMetadata(instance, metadataTypeReference) ?? "__UNKNOWN__");
 	}
 
 	if (!_type) {
