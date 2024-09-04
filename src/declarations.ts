@@ -1,18 +1,134 @@
-/** @hidden */
-export class IType {
-	readonly Name!: string;
-	readonly FullName!: string;
-	readonly Namespace!: string;
-	readonly BaseType?: Type;
-	readonly Value?: unknown;
-	readonly Constructor?: ConstructorInfo;
-	readonly Interfaces!: Type[];
-	readonly Properties!: Property[];
-	readonly Methods!: Method[];
-	readonly Kind!: TypeKind;
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { AttributeMarker } from "./public-api";
+
+export type Constructor<T = object> = new (...args: never[]) => T;
+export type AttributeKind = "class" | "method" | "property" | "parameter";
+type InferConstructorFromAttributeMarker<T> = T extends AttributeMarker<infer R> ? R : never;
+
+let imported: typeof import("./internal-usage") | undefined;
+function ImportInternalApi() {
+	if (imported) return imported;
+	imported = import("./internal-usage").expect();
+
+	return imported;
 }
 
-export class Type extends IType {
+export class Attribute {
+	/** @hidden */
+	public Attributes: object[] = [];
+	/** @hidden */
+	public AttributesById = new Map<string, object>();
+
+	public GetAttributes() {
+		return this.Attributes;
+	}
+
+	/** @AttributeAPI */
+	public static Is<T extends AttributeMarker<any>>(attributeData: unknown): attributeData is T["__instance"] {
+		const attributeId = ImportInternalApi().GetGenericParameters()[0];
+		const casted = attributeData as Record<string, unknown>;
+		if (casted["__id"] === undefined) return false;
+
+		return casted["__id"] === attributeId;
+	}
+
+	private findAttributeInherit<T extends AttributeMarker<any>>(attributeId: string) {
+		if (!(this instanceof Type)) return;
+
+		let parent = this.BaseType;
+		while (parent) {
+			const attribute = parent.getAttribute<T>(attributeId);
+			if (attribute) {
+				return attribute as T;
+			}
+			parent = parent.BaseType;
+		}
+	}
+
+	private getAttribute<T extends AttributeMarker<any>>(attributeId: string) {
+		return this.AttributesById.get(attributeId) as T["__instance"] | undefined;
+	}
+
+	/** @AttributeAPI */
+	public GetAttribute<T extends AttributeMarker<any>>(inherit = false) {
+		const attributeId = ImportInternalApi().GetGenericParameters()[0];
+		if (!attributeId) {
+			throw "Attribute id is not set";
+		}
+
+		if (inherit) {
+			const attribute = this.findAttributeInherit(attributeId);
+			if (attribute) return attribute as T["__instance"];
+		}
+
+		return this.getAttribute<T>(attributeId) as T["__instance"] | undefined;
+	}
+
+	/** @AttributeAPI */
+	public HaveAttribute<T extends AttributeMarker<any>>(inherit = false) {
+		const attributeId = ImportInternalApi().GetGenericParameters()[0];
+		if (!attributeId) {
+			throw "Attribute id is not set";
+		}
+
+		if (inherit) {
+			const attribute = this.findAttributeInherit(attributeId);
+			if (attribute) return true;
+		}
+
+		return this.getAttribute<T>(attributeId) !== undefined;
+	}
+}
+
+export class Type extends Attribute {
+	public readonly Name!: string;
+	public readonly FullName!: string;
+	public readonly Assembly!: string;
+	public readonly BaseType?: Type;
+	public readonly Value?: unknown;
+	public readonly Constructor?: ConstructorInfo;
+	public readonly Interfaces!: ReadonlyArray<Type>;
+	public readonly Properties!: ReadonlyArray<Attribute & Property>;
+	public readonly Methods!: ReadonlyArray<Attribute & Method>;
+	public readonly Kind!: TypeKind;
+
+	private mapProperties = new Map<string, Property>();
+	private mapMethods = new Map<string, Method>();
+
+	constructor() {
+		super();
+
+		this.Properties.forEach((property) => {
+			this.mapProperties.set(property.Name, property);
+		});
+
+		this.Methods.forEach((method) => {
+			this.mapMethods.set(method.Name, method);
+		});
+
+		if (this.BaseType) {
+			this.BaseType.Properties.forEach((property) => {
+				this.mapProperties.set(property.Name, property);
+			});
+
+			this.BaseType.Methods.forEach((method) => {
+				this.mapMethods.set(method.Name, method);
+			});
+		}
+
+		(this.Properties as unknown as Property[]).clear();
+		(this.Methods as unknown as Method[]).clear();
+
+		this.mapProperties.forEach((property) => {
+			(this.Properties as unknown as Property[]).push(property);
+		});
+
+		this.mapMethods.forEach((method) => {
+			(this.Methods as unknown as Method[]).push(method);
+		});
+	}
+
 	public IsInterface() {
 		return this.Kind === TypeKind.Interface;
 	}
@@ -36,11 +152,59 @@ export class Type extends IType {
 	public IsPrimitive() {
 		return this.Kind === TypeKind.Primitive;
 	}
+
+	public GetProperty(name: string) {
+		return this.mapProperties.get(name);
+	}
+
+	public GetMethod(name: string) {
+		return this.mapMethods.get(name);
+	}
 }
 
-export function ConvertTypeDescriptorInClass(descriptor: IType): Type {
-	setmetatable(descriptor, Type as never);
-	return descriptor as Type;
+const mt = getmetatable(Type) as { __index?: object };
+mt.__index = Attribute;
+
+export function WithAttributeProvider(instance: object, setMT = true) {
+	const template = new Attribute();
+
+	for (const [key, value] of pairs(template)) {
+		(instance as Record<string, unknown>)[key] = value;
+	}
+
+	setMT && setmetatable(instance, Attribute as never);
+	return instance as Attribute;
+}
+
+export function GetDeferredConstructor<T extends object>(ctor: Constructor<T>) {
+	const obj = setmetatable({}, ctor as never) as T;
+
+	return [
+		obj,
+		(...args: ConstructorParameters<Constructor<T>>) => {
+			(obj as { "constructor"(...args: unknown[]): unknown }).constructor(...args);
+		},
+	] as const;
+}
+
+export function ConvertTypeDescriptorInClass(descriptor: object): Type {
+	const [template, ctor] = GetDeferredConstructor(Type);
+
+	for (const [key, value] of pairs(descriptor as Record<string, unknown>)) {
+		(template as unknown as Record<string, unknown>)[key] = value;
+	}
+
+	template.Properties.forEach((property) => {
+		WithAttributeProvider(property);
+	});
+
+	template.Methods.forEach((method) => {
+		WithAttributeProvider(method);
+	});
+
+	ctor();
+
+	return template;
 }
 
 export enum TypeKind {
@@ -63,7 +227,7 @@ export class Method {
 	readonly Callback?: (context: unknown, ...args: unknown[]) => unknown;
 }
 
-export class Parameter {
+export class Parameter extends Attribute {
 	readonly Name!: string;
 	readonly Type!: Type;
 	readonly Optional!: boolean;
@@ -74,7 +238,6 @@ export class Property {
 	readonly Type!: Type;
 	readonly Optional!: boolean;
 	readonly AccessModifier!: number;
-	//readonly accessor: Accessor;
 	readonly Readonly!: boolean;
 }
 
