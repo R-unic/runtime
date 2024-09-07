@@ -1,7 +1,7 @@
 {
   "name": "@rbxts/reflection-runtime",
-  "version": "0.0.1",
-  "description": "",
+  "version": "1.0.0",
+  "description": "Library that allows you to work with types in runtime!",
   "main": "out/init.lua",
   "scripts": {
     "build": "rbxtsc",
@@ -10,9 +10,21 @@
     "serve": "rojo serve test/default.project.json",
     "prepublishOnly": "npm run build"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "@rbxts",
+	  "transformer",
+    "reflection",
+    "reflect", 
+    "type", 
+    "types",
+    "reflection-runtime"
+  ],
+  "repository": {
+		"type": "git",
+		"url": "https://github.com/roblox-ts-reflection/runtime"
+	},
+  "author": "Tesmi (https://github.com/Tesmi-Develop)",
+	"license": "MIT",
   "types": "out/index.d.ts",
   "files": [
     "out",

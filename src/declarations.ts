@@ -4,9 +4,8 @@ import { AttributeMarker } from "./public-api";
 
 export type Constructor<T = object> = new (...args: never[]) => T;
 export type AttributeKind = "class" | "method" | "property" | "parameter";
-type InferConstructorFromAttributeMarker<T> = T extends AttributeMarker<infer R> ? R : never;
-
 let imported: typeof import("./internal-usage") | undefined;
+
 function ImportInternalApi() {
 	if (imported) return imported;
 	imported = import("./internal-usage").expect();
@@ -207,6 +206,12 @@ export function ConvertTypeDescriptorInClass(descriptor: object): Type {
 	return template;
 }
 
+export enum AccessModifier {
+	Private = 0,
+	Protected = 1,
+	Public = 2,
+}
+
 export enum TypeKind {
 	Unknown = 0,
 	Primitive = 1,
@@ -221,7 +226,7 @@ export class Method {
 	readonly Name!: string;
 	readonly ReturnType!: Type;
 	readonly Parameters!: Parameter[];
-	readonly AccessModifier!: number;
+	readonly AccessModifier!: AccessModifier;
 	readonly IsStatic!: boolean;
 	readonly IsAbstract!: boolean;
 	readonly Callback?: (context: unknown, ...args: unknown[]) => unknown;
@@ -237,12 +242,12 @@ export class Property {
 	readonly Name!: string;
 	readonly Type!: Type;
 	readonly Optional!: boolean;
-	readonly AccessModifier!: number;
+	readonly AccessModifier!: AccessModifier;
 	readonly Readonly!: boolean;
 }
 
 export class ConstructorInfo {
 	readonly Parameters!: Parameter[];
-	readonly AccessModifier!: number;
+	readonly AccessModifier!: AccessModifier;
 	readonly Callback?: (...args: unknown[]) => unknown;
 }
