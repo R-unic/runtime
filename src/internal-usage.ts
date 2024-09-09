@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { AttributeKind, ConvertTypeDescriptorInClass, Type } from "./declarations";
+import { AttributeKind, ConvertTypeDescriptorInClass, Type, TypeKind } from "./declarations";
 import { Metadata } from "./metadata";
 import { GlobalContext, ReflectStore } from "./store";
 
@@ -8,9 +8,27 @@ export const ATTRIBUTE_KIND = "__ATTRIBUTE_KIND__";
 export const ATTRIBUTE_PARAMETERS = "__ATTRIBUTE_PARAMETERS__";
 export const metadataTypeReference = "__TYPE_REFERENSE__";
 
+/** @hidden @internal */
+export const ScheduledTypes = new Map<string, object>();
+export const UNKNOWN_TYPE = ConvertTypeDescriptorInClass({
+	Name: "unknown",
+	FullName: "unknown",
+	Assembly: "unknown",
+	BaseType: undefined,
+	Interfaces: [],
+	Properties: [],
+	Methods: [],
+	Kind: TypeKind.Unknown,
+} as never);
+
+/** @internal @hidden */
 export function RegisterType(_typeRef: Type) {
 	if (ReflectStore.Store.has(_typeRef.FullName)) return;
-	const _type = ConvertTypeDescriptorInClass(_typeRef);
+
+	const typeObject = ScheduledTypes.get(_typeRef.FullName);
+	ScheduledTypes.delete(_typeRef.FullName);
+
+	const _type = ConvertTypeDescriptorInClass(_typeRef, typeObject);
 
 	const types = ReflectStore.TypesByProjectName.get(_type.Assembly) ?? [];
 	ReflectStore.TypesByProjectName.set(_type.Assembly, types);
@@ -31,10 +49,12 @@ export function SetupKindForAttribute(kind: AttributeKind, additionalParams?: un
 	GlobalContext[ATTRIBUTE_PARAMETERS] = additionalParams;
 }
 
+/** @internal @hidden */
 export function RegisterTypes(...args: Type[]) {
 	args.forEach(RegisterType);
 }
 
+/** @internal @hidden */
 export function RegisterDataType(instance: object, name: string) {
 	Metadata.defineMetadata(instance, metadataTypeReference, name);
 }
@@ -71,17 +91,26 @@ function ImportPublicApi() {
 }
 
 /** @internal @hidden */
-export function __GetType<T>(instance?: T): Type {
-	return ImportPublicApi().GetType<T>(instance);
+export function __GetType(id: unknown, schedulingType = false): Type {
+	const _type = ImportPublicApi().GetType(id);
+
+	if (!ReflectStore.Store.has(id as string) && schedulingType) {
+		const typeReferense = {};
+		ScheduledTypes.set(id as string, typeReferense);
+
+		return typeReferense as Type;
+	}
+
+	return _type;
 }
 
-/** @internal */
+/** @internal @hidden */
 export function GetMethodCallback(ctor: object, methodName: string) {
 	const casted = ctor as Record<string, (context: unknown, ...args: unknown[]) => unknown>;
 	return casted[methodName];
 }
 
-/** @internal */
+/** @internal @hidden */
 export function GetConstructorCallback(ctor: object) {
 	const casted = ctor as Record<string, (...args: unknown[]) => unknown>;
 	return casted["constructor"];

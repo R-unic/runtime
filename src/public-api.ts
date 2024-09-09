@@ -1,14 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import {
-	Attribute,
-	AttributeKind,
-	Constructor,
-	ConvertTypeDescriptorInClass,
-	Type,
-	TypeKind,
-	WithAttributeProvider,
-} from "./declarations";
-import { __GetType, ATTRIBUTE_KIND, ATTRIBUTE_PARAMETERS, metadataTypeReference } from "./internal-usage";
+import { Attribute, AttributeKind, Constructor, Type, WithAttributeProvider } from "./declarations";
+import { __GetType, ATTRIBUTE_KIND, ATTRIBUTE_PARAMETERS, metadataTypeReference, UNKNOWN_TYPE } from "./internal-usage";
 import { Metadata } from "./metadata";
 import { GlobalContext, ReflectStore } from "./store";
 
@@ -20,16 +12,14 @@ export interface AttributeMarker<T extends Constructor> {
 	readonly __instance: InstanceType<T>;
 }
 
-const UNKNOWN_TYPE = ConvertTypeDescriptorInClass({
-	Name: "unknown",
-	FullName: "unknown",
-	Assembly: "unknown",
-	BaseType: undefined,
-	Interfaces: [],
-	Properties: [],
-	Methods: [],
-	Kind: TypeKind.Unknown,
-} as never);
+function GetPrimitiveTypeId(value: unknown) {
+	if (typeIs(value, "table")) {
+		return Metadata.getMetadata<string>(value, metadataTypeReference) ?? "__UNKNOWN__";
+	}
+
+	const name = typeOf(value);
+	return `Primitive:${name}`;
+}
 
 export function GetAllTypes() {
 	return ReflectStore.Types as ReadonlyArray<Type>;
@@ -54,8 +44,8 @@ export function GetType<T>(instance?: T): Type {
 		_type = ReflectStore.Store.get(instance);
 	}
 
-	if (typeIs(instance, "table")) {
-		_type = ReflectStore.Store.get(Metadata.getMetadata(instance, metadataTypeReference) ?? "__UNKNOWN__");
+	if (_type === undefined) {
+		_type = ReflectStore.Store.get(GetPrimitiveTypeId(instance));
 	}
 
 	if (!_type) {

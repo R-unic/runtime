@@ -88,8 +88,8 @@ export class Type extends Attribute {
 	public readonly Value?: unknown;
 	public readonly Constructor?: ConstructorInfo;
 	public readonly Interfaces!: ReadonlyArray<Type>;
-	public readonly Properties!: ReadonlyArray<Attribute & Property>;
-	public readonly Methods!: ReadonlyArray<Attribute & Method>;
+	public readonly Properties!: ReadonlyArray<Property>;
+	public readonly Methods!: ReadonlyArray<Method>;
 	public readonly Kind!: TypeKind;
 
 	private mapProperties = new Map<string, Property>();
@@ -161,9 +161,6 @@ export class Type extends Attribute {
 	}
 }
 
-const mt = getmetatable(Type) as { __index?: object };
-mt.__index = Attribute;
-
 export function WithAttributeProvider(instance: object, setMT = true) {
 	const template = new Attribute();
 
@@ -175,30 +172,40 @@ export function WithAttributeProvider(instance: object, setMT = true) {
 	return instance as Attribute;
 }
 
-export function GetDeferredConstructor<T extends object>(ctor: Constructor<T>) {
-	const obj = setmetatable({}, ctor as never) as T;
+export function GetDeferredConstructor<T extends object>(ctor: Constructor<T>, obj?: object) {
+	obj = setmetatable(obj ?? {}, ctor as never) as T;
 
 	return [
-		obj,
+		obj as T,
 		(...args: ConstructorParameters<Constructor<T>>) => {
 			(obj as { "constructor"(...args: unknown[]): unknown }).constructor(...args);
 		},
 	] as const;
 }
 
-export function ConvertTypeDescriptorInClass(descriptor: object): Type {
-	const [template, ctor] = GetDeferredConstructor(Type);
+function Copy(target: object, source: object) {
+	for (const [key, value] of pairs(source)) {
+		(target as Record<string, unknown>)[key as string] = value;
+	}
+}
+
+export function ConvertTypeDescriptorInClass(descriptor: object, _typeObject?: object): Type {
+	const [template, ctor] = GetDeferredConstructor(Type, _typeObject);
 
 	for (const [key, value] of pairs(descriptor as Record<string, unknown>)) {
 		(template as unknown as Record<string, unknown>)[key] = value;
 	}
 
 	template.Properties.forEach((property) => {
-		WithAttributeProvider(property);
+		const template = new Property();
+		Copy(property, template);
+		setmetatable(property, Property as never);
 	});
 
 	template.Methods.forEach((method) => {
-		WithAttributeProvider(method);
+		const template = new Method();
+		Copy(method, template);
+		setmetatable(method, Property as never);
 	});
 
 	ctor();
@@ -222,7 +229,7 @@ export enum TypeKind {
 	Enum = 6,
 }
 
-export class Method {
+export class Method extends Attribute {
 	readonly Name!: string;
 	readonly ReturnType!: Type;
 	readonly Parameters!: Parameter[];
@@ -230,6 +237,16 @@ export class Method {
 	readonly IsStatic!: boolean;
 	readonly IsAbstract!: boolean;
 	readonly Callback?: (context: unknown, ...args: unknown[]) => unknown;
+
+	// TODO
+	/*public Invoke(...args: unknown[]) {
+		this.Parameters.forEach((parameter, index) => {
+			const value = args[index];
+			if (value === undefined && !parameter.Optional) {
+				throw `Parameter ${parameter.Name} is required`;
+			}
+		})
+	}*/
 }
 
 export class Parameter extends Attribute {
@@ -238,15 +255,24 @@ export class Parameter extends Attribute {
 	readonly Optional!: boolean;
 }
 
-export class Property {
+export class Property extends Attribute {
 	readonly Name!: string;
 	readonly Type!: Type;
 	readonly Optional!: boolean;
 	readonly AccessModifier!: AccessModifier;
 	readonly Readonly!: boolean;
+
+	public Set(obj: object, value: unknown) {
+		const _type = ImportInternalApi().__GetType(value);
+		if (_type !== this.Type) {
+			throw "Type mismatch";
+		}
+
+		obj[this.Name as never] = value as never;
+	}
 }
 
-export class ConstructorInfo {
+export class ConstructorInfo extends Attribute {
 	readonly Parameters!: Parameter[];
 	readonly AccessModifier!: AccessModifier;
 	readonly Callback?: (...args: unknown[]) => unknown;
