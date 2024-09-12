@@ -37,6 +37,8 @@ export function GetTypes(assembly: string | typeof CurrentAssembly) {
 	return (ReflectStore.TypesByProjectName.get(assembly as string) as ReadonlyArray<Type>) ?? [];
 }
 
+const cachedRobloxInstanceTypes = new Map<string, Type>();
+
 export function GetType<T>(instance?: T): Type {
 	let _type: Type | undefined;
 
@@ -44,11 +46,28 @@ export function GetType<T>(instance?: T): Type {
 		_type = ReflectStore.Store.get(instance);
 	}
 
-	if (_type === undefined) {
-		_type = ReflectStore.Store.get(GetPrimitiveTypeId(instance));
+	_type ??= ReflectStore.Store.get(GetPrimitiveTypeId(instance));
+	_type ??= ReflectStore.Store.get(`@rbxts/types:include/roblox#${typeOf(instance)}`);
+
+	if (_type === undefined && typeIs(instance, "Instance")) {
+		_type = ReflectStore.Store.get(`RobloxInstance:${instance.ClassName}`);
+
+		if (_type === undefined) {
+			if (cachedRobloxInstanceTypes.has(instance.ClassName)) {
+				return cachedRobloxInstanceTypes.get(instance.ClassName)!;
+			}
+
+			_type = ReflectStore.Store.get("RobloxInstance:Instance")!;
+			const clone = table.clone(_type);
+			(clone.RobloxInstanceType as unknown as string) = instance.ClassName;
+			(clone.FullName as unknown as string) = `RobloxInstance:${instance.ClassName}`;
+			cachedRobloxInstanceTypes.set(instance.ClassName, clone);
+
+			return clone;
+		}
 	}
 
-	if (!_type) {
+	if (_type === undefined) {
 		return UNKNOWN_TYPE;
 	}
 

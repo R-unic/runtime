@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { AttributeKind, ConvertTypeDescriptorInClass, Type, TypeKind } from "./declarations";
+import { AttributeKind, ConvertTypeDescriptorInClass, Type } from "./declarations";
+import { TypeKind } from "./enums";
 import { Metadata } from "./metadata";
 import { GlobalContext, ReflectStore } from "./store";
 

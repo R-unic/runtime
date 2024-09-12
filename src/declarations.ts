@@ -1,6 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import { t } from "@rbxts/t";
+import { AccessModifier, TypeKind } from "./enums";
 import { AttributeMarker } from "./public-api";
+import { GenerateValidator } from "./validator-helper";
 
 export type Constructor<T = object> = new (...args: never[]) => T;
 export type AttributeKind = "class" | "method" | "property" | "parameter";
@@ -91,9 +94,32 @@ export class Type extends Attribute {
 	public readonly Properties!: ReadonlyArray<Property>;
 	public readonly Methods!: ReadonlyArray<Method>;
 	public readonly Kind!: TypeKind;
+	public readonly RobloxInstanceType?: keyof Instances;
 
 	private mapProperties = new Map<string, Property>();
 	private mapMethods = new Map<string, Method>();
+
+	public static Validate<T>(v: unknown): v is T {
+		const api = ImportInternalApi();
+		const generic = api.GetGenericParameters()[0];
+		if (generic === undefined) throw "Type generic is not set";
+
+		if (generic.find("RobloxInstance")[0]) {
+			const _type = api.__GetType("RobloxInstance:Instance");
+			return GenerateValidator(_type)(v);
+		}
+
+		const _type = api.__GetType(generic);
+		return GenerateValidator(_type)(v);
+	}
+
+	public static GenerateValidator<T>() {
+		const api = ImportInternalApi();
+		const generics = api.GetGenericParameters();
+		const _type = api.__GetType(generics[0]);
+
+		return GenerateValidator(_type) as t.check<T>;
+	}
 
 	constructor() {
 		super();
@@ -211,22 +237,6 @@ export function ConvertTypeDescriptorInClass(descriptor: object, _typeObject?: o
 	ctor();
 
 	return template;
-}
-
-export enum AccessModifier {
-	Private = 0,
-	Protected = 1,
-	Public = 2,
-}
-
-export enum TypeKind {
-	Unknown = 0,
-	Primitive = 1,
-	Interface = 2,
-	Class = 3,
-	Object = 4,
-	TypeParameter = 5,
-	Enum = 6,
 }
 
 export class Method extends Attribute {
