@@ -9,6 +9,9 @@ export type Constructor<T = object> = new (...args: never[]) => T;
 export type AttributeKind = "class" | "method" | "property" | "parameter";
 let imported: typeof import("./internal-usage") | undefined;
 
+/** @hidden @internal */
+export const ScheduledTypes = new Map<string, object>();
+
 function ImportInternalApi() {
 	if (imported) return imported;
 	imported = import("./internal-usage").expect();
@@ -215,23 +218,31 @@ function Copy(target: object, source: object) {
 	}
 }
 
-export function ConvertTypeDescriptorInClass(descriptor: object, _typeObject?: object): Type {
-	const [template, ctor] = GetDeferredConstructor(Type, _typeObject);
+export function ConvertTypeDescriptorInClass(descriptor: Type): Type {
+	if (getmetatable(descriptor) !== undefined) return descriptor;
 
-	for (const [key, value] of pairs(descriptor as Record<string, unknown>)) {
+	const typeObject = ScheduledTypes.get(descriptor.FullName);
+	ScheduledTypes.delete(descriptor.FullName);
+
+	const [template, ctor] = GetDeferredConstructor(Type, typeObject);
+
+	for (const [key, value] of pairs(descriptor as unknown as Record<string, unknown>)) {
 		(template as unknown as Record<string, unknown>)[key] = value;
 	}
 
 	template.Properties.forEach((property) => {
 		const template = new Property();
+
 		Copy(property, template);
 		setmetatable(property, Property as never);
+		ConvertTypeDescriptorInClass(property.Type);
 	});
 
 	template.Methods.forEach((method) => {
 		const template = new Method();
 		Copy(method, template);
 		setmetatable(method, Property as never);
+		ConvertTypeDescriptorInClass(method.ReturnType);
 	});
 
 	ctor();

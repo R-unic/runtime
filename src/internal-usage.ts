@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { AttributeKind, ConvertTypeDescriptorInClass, Type } from "./declarations";
+import { AttributeKind, ConvertTypeDescriptorInClass, ScheduledTypes, Type } from "./declarations";
 import { TypeKind } from "./enums";
 import { Metadata } from "./metadata";
 import { GlobalContext, ReflectStore } from "./store";
@@ -9,8 +9,6 @@ export const ATTRIBUTE_KIND = "__ATTRIBUTE_KIND__";
 export const ATTRIBUTE_PARAMETERS = "__ATTRIBUTE_PARAMETERS__";
 export const metadataTypeReference = "__TYPE_REFERENSE__";
 
-/** @hidden @internal */
-export const ScheduledTypes = new Map<string, object>();
 export const UNKNOWN_TYPE = ConvertTypeDescriptorInClass({
 	Name: "unknown",
 	FullName: "unknown",
@@ -22,14 +20,38 @@ export const UNKNOWN_TYPE = ConvertTypeDescriptorInClass({
 	Kind: TypeKind.Unknown,
 } as never);
 
+let GenericParamsContext: { Ordered: Type[]; Mapped: Map<string, Type> } | undefined;
+
 /** @internal @hidden */
-export function RegisterType(_typeRef: Type) {
+export function DefineGenericParameters(params: Type[]) {
+	params = params.map((v) => ConvertTypeDescriptorInClass(v));
+	GenericParamsContext = {
+		Ordered: params,
+		Mapped: new Map(params.map((v) => [v.Name, v])),
+	};
+
+	return params;
+}
+
+/** @internal @hidden */
+export function GetGenericParameter(paramName: string) {
+	if (!GenericParamsContext) {
+		throw `Generic parameter ${paramName} is not defined`;
+	}
+
+	const generic = GenericParamsContext.Mapped.get(paramName);
+	if (!generic) {
+		throw `Generic parameter ${paramName} is not defined`;
+	}
+
+	return generic;
+}
+
+/** @internal @hidden */
+export function RegisterType(typeParams: Type[], _typeRef: Type) {
 	if (ReflectStore.Store.has(_typeRef.FullName)) return;
 
-	const typeObject = ScheduledTypes.get(_typeRef.FullName);
-	ScheduledTypes.delete(_typeRef.FullName);
-
-	const _type = ConvertTypeDescriptorInClass(_typeRef, typeObject);
+	const _type = ConvertTypeDescriptorInClass(_typeRef);
 
 	const types = ReflectStore.TypesByProjectName.get(_type.Assembly) ?? [];
 	ReflectStore.TypesByProjectName.set(_type.Assembly, types);
@@ -42,6 +64,7 @@ export function RegisterType(_typeRef: Type) {
 	types.push(_type);
 	ReflectStore.Types.push(_type);
 	ReflectStore.Store.set(_type.FullName, _type);
+	GenericParamsContext = undefined;
 }
 
 /** @internal @hidden */
@@ -52,7 +75,7 @@ export function SetupKindForAttribute(kind: AttributeKind, additionalParams?: un
 
 /** @internal @hidden */
 export function RegisterTypes(...args: Type[]) {
-	args.forEach(RegisterType);
+	args.forEach((v) => RegisterType([], v)); // TODO
 }
 
 /** @internal @hidden */
@@ -92,11 +115,11 @@ function ImportPublicApi() {
 }
 
 /** @internal @hidden */
-export function __GetType(id: unknown, schedulingType = false): Type {
+export function __GetType(id: unknown, schedulingType = false, typeArguments = [] as Type[]): Type {
 	const _type = ImportPublicApi().GetType(id);
 
 	if (!ReflectStore.Store.has(id as string) && schedulingType) {
-		const typeReferense = {};
+		const typeReferense = ScheduledTypes.get(id as string) ?? {};
 		ScheduledTypes.set(id as string, typeReferense);
 
 		return typeReferense as Type;
