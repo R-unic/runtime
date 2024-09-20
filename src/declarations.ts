@@ -85,9 +85,9 @@ export class Attribute {
 		return this.getAttribute<T>(attributeId) !== undefined;
 	}
 }
-
 export class Type extends Attribute {
 	public readonly Name!: string;
+	public readonly TypeParameters!: ReadonlyArray<Type>;
 	public readonly FullName!: string;
 	public readonly Assembly!: string;
 	public readonly BaseType?: Type;

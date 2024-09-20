@@ -1,3 +1,4 @@
+/* eslint-disable roblox-ts/no-array-pairs */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { AttributeKind, ConvertTypeDescriptorInClass, ScheduledTypes, Type } from "./declarations";
 import { TypeKind } from "./enums";
@@ -8,9 +9,11 @@ const GENERIC_PARAMETERS = "__GENERIC_PARAMETERS__";
 export const ATTRIBUTE_KIND = "__ATTRIBUTE_KIND__";
 export const ATTRIBUTE_PARAMETERS = "__ATTRIBUTE_PARAMETERS__";
 export const metadataTypeReference = "__TYPE_REFERENSE__";
+const SOLVED_TYPE_KEY = "_solvedType";
 
 export const UNKNOWN_TYPE = ConvertTypeDescriptorInClass({
 	Name: "unknown",
+	TypeParameters: [],
 	FullName: "unknown",
 	Assembly: "unknown",
 	BaseType: undefined,
@@ -23,32 +26,28 @@ export const UNKNOWN_TYPE = ConvertTypeDescriptorInClass({
 let GenericParamsContext: { Ordered: Type[]; Mapped: Map<string, Type> } | undefined;
 
 /** @internal @hidden */
-export function DefineGenericParameters(params: Type[]) {
-	params = params.map((v) => ConvertTypeDescriptorInClass(v));
-	GenericParamsContext = {
-		Ordered: params,
-		Mapped: new Map(params.map((v) => [v.Name, v])),
-	};
+export function DefineLocalType(id: number, _type: Type) {
+	const finalId = tostring(id);
+	if (ReflectStore.LocalTypes.has(finalId)) {
+		throw "Type already defined";
+	}
 
-	return params;
+	_type = ConvertTypeDescriptorInClass(_type);
+	ReflectStore.LocalTypes.set(finalId, _type);
 }
 
 /** @internal @hidden */
-export function GetGenericParameter(paramName: string) {
-	if (!GenericParamsContext) {
-		throw `Generic parameter ${paramName} is not defined`;
+export function GetLocalType(id: number) {
+	const finalId = tostring(id);
+	if (!ReflectStore.LocalTypes.has(finalId)) {
+		throw "Type not found";
 	}
 
-	const generic = GenericParamsContext.Mapped.get(paramName);
-	if (!generic) {
-		throw `Generic parameter ${paramName} is not defined`;
-	}
-
-	return generic;
+	return ReflectStore.LocalTypes.get(finalId)!;
 }
 
 /** @internal @hidden */
-export function RegisterType(typeParams: Type[], _typeRef: Type) {
+export function RegisterType(_typeRef: Type) {
 	if (ReflectStore.Store.has(_typeRef.FullName)) return;
 
 	const _type = ConvertTypeDescriptorInClass(_typeRef);
@@ -75,7 +74,7 @@ export function SetupKindForAttribute(kind: AttributeKind, additionalParams?: un
 
 /** @internal @hidden */
 export function RegisterTypes(...args: Type[]) {
-	args.forEach((v) => RegisterType([], v)); // TODO
+	args.forEach((v) => RegisterType(v));
 }
 
 /** @internal @hidden */
@@ -115,7 +114,7 @@ function ImportPublicApi() {
 }
 
 /** @internal @hidden */
-export function __GetType(id: unknown, schedulingType = false, typeArguments = [] as Type[]): Type {
+export function __GetType(id: unknown, schedulingType = false): Type {
 	const _type = ImportPublicApi().GetType(id);
 
 	if (!ReflectStore.Store.has(id as string) && schedulingType) {
