@@ -9,7 +9,6 @@ const GENERIC_PARAMETERS = "__GENERIC_PARAMETERS__";
 export const ATTRIBUTE_KIND = "__ATTRIBUTE_KIND__";
 export const ATTRIBUTE_PARAMETERS = "__ATTRIBUTE_PARAMETERS__";
 export const metadataTypeReference = "__TYPE_REFERENSE__";
-const SOLVED_TYPE_KEY = "_solvedType";
 
 export const UNKNOWN_TYPE = ConvertTypeDescriptorInClass({
 	Name: "unknown",
@@ -23,8 +22,6 @@ export const UNKNOWN_TYPE = ConvertTypeDescriptorInClass({
 	Kind: TypeKind.Unknown,
 } as never);
 
-let GenericParamsContext: { Ordered: Type[]; Mapped: Map<string, Type> } | undefined;
-
 /** @internal @hidden */
 export function DefineLocalType(id: number, _type: Type) {
 	const finalId = tostring(id);
@@ -32,13 +29,26 @@ export function DefineLocalType(id: number, _type: Type) {
 		throw "Type already defined";
 	}
 
-	_type = ConvertTypeDescriptorInClass(_type);
+	_type = ConvertTypeDescriptorInClass(_type, schedulingLocalTypes.get(finalId));
+	schedulingLocalTypes.delete(finalId);
+
 	ReflectStore.LocalTypes.set(finalId, _type);
 }
 
+const schedulingLocalTypes = new Map<string, object>();
+
 /** @internal @hidden */
-export function GetLocalType(id: number) {
+export function GetLocalType(id: number, schedulingType = false) {
 	const finalId = tostring(id);
+
+	if (schedulingType) {
+		const finalId = tostring(id);
+		const typeReferense = schedulingLocalTypes.get(finalId) ?? {};
+		schedulingLocalTypes.set(finalId, typeReferense);
+
+		return typeReferense as Type;
+	}
+
 	if (!ReflectStore.LocalTypes.has(finalId)) {
 		throw "Type not found";
 	}
@@ -63,7 +73,6 @@ export function RegisterType(_typeRef: Type) {
 	types.push(_type);
 	ReflectStore.Types.push(_type);
 	ReflectStore.Store.set(_type.FullName, _type);
-	GenericParamsContext = undefined;
 }
 
 /** @internal @hidden */

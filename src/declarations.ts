@@ -218,10 +218,10 @@ function Copy(target: object, source: object) {
 	}
 }
 
-export function ConvertTypeDescriptorInClass(descriptor: Type): Type {
+export function ConvertTypeDescriptorInClass(descriptor: Type, typeObject?: object): Type {
 	if (getmetatable(descriptor) !== undefined) return descriptor;
 
-	const typeObject = ScheduledTypes.get(descriptor.FullName);
+	typeObject ??= ScheduledTypes.get(descriptor.FullName);
 	ScheduledTypes.delete(descriptor.FullName);
 
 	const [template, ctor] = GetDeferredConstructor(Type, typeObject);
